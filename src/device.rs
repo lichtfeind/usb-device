@@ -276,7 +276,14 @@ impl<B: UsbBus> UsbDevice<'_, B> {
                     => UsbDevice::get_descriptor(&self.config, classes, xfer),
 
                 (Recipient::Device, Request::GET_CONFIGURATION) => {
-                    xfer.accept_with(&CONFIGURATION_VALUE.to_le_bytes()).ok();
+                    match self.device_state {
+                        UsbDeviceState::Configured => {
+                            xfer.accept_with(&CONFIGURATION_VALUE.to_le_bytes()).ok();
+                        },
+                        UsbDeviceState::Default | UsbDeviceState::Addressed | UsbDeviceState::Suspend => { 
+                            xfer.accept_with(&[0]).ok();
+                        },
+                    } 
                 },
 
                 (Recipient::Interface, Request::GET_INTERFACE) => {
@@ -340,6 +347,10 @@ impl<B: UsbBus> UsbDevice<'_, B> {
 
                 (Recipient::Device, Request::SET_CONFIGURATION, CONFIGURATION_VALUE_U16) => {
                     self.device_state = UsbDeviceState::Configured;
+                    xfer.accept().ok();
+                },
+                (Recipient::Device, Request::SET_CONFIGURATION, 0) => { // Sets device back to Adresses state
+                    self.device_state = UsbDeviceState::Addressed;
                     xfer.accept().ok();
                 },
 
